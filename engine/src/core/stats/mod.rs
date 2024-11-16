@@ -1,4 +1,7 @@
+use std::{fmt::Debug, marker::PhantomData};
+
 pub mod abilities;
+pub mod skills;
 pub mod stat_block;
 
 ///
@@ -93,7 +96,7 @@ impl std::fmt::Display for AbilityModifier {
             0 => write!(f, "±0"),
             -5..=-1 => write!(f, "{}", self.0),
             1..=10 => write!(f, "+{}", self.0),
-            _ => unreachable!("Modifier has invalid memory layout: (i8::MIN..-5) and (6..i8::MAX) should not be valid!")
+            _ => unreachable!("Ability modifier has invalid memory layout: (i8::MIN..-5) and (6..i8::MAX) should not be valid!")
         }
     }
 }
@@ -103,6 +106,33 @@ impl std::fmt::Debug for AbilityModifier {
         <Self as std::fmt::Display>::fmt(self, f)
     }
 }
+
+pub trait StatType: Copy + Clone {
+    type Value: Copy + Clone;
+    const NAME: &'static str;
+}
+
+pub struct Stat<T: StatType>(T::Value, PhantomData<T>);
+
+impl<T: StatType> Stat<T> {
+    pub const fn new(value: T::Value) -> Self {
+        Self(value, PhantomData)
+    }
+
+    pub const fn get(&self) -> &T::Value {
+        &self.0
+    }
+}
+
+impl<T: StatType> std::fmt::Debug for Stat<T>
+where
+    T::Value: Debug,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} = {:?}", T::NAME, self.0)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{AbilityModifier, AbilityScore};

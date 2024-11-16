@@ -1,6 +1,13 @@
 [package]
-name = "engine"
+name = "xander-engine"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "rat"
+path = "bin/rat.rs"
+
 [dependencies]
+owo-colors = { version = "4.1.0", features = ["supports-colors"] }
+rand = "0.8.5"
+
