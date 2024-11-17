@@ -2,14 +2,13 @@
 //! Formatting choices!
 //!
 
-use owo_colors::{colors, OwoColorize, Stream::Stdout, SupportsColorsDisplay};
-use std::fmt::Display;
+use owo_colors::{colors, Stream::Stdout};
 
 macro_rules! formatting {
     ($ident: ident, $expr: expr) => {
-        pub fn $ident<'a, D: owo_colors::OwoColorize + std::fmt::Display>(
-            item: &'a D,
-        ) -> impl std::fmt::Display + 'a {
+        pub fn $ident<D: owo_colors::OwoColorize + std::fmt::Display>(
+            item: &D,
+        ) -> impl std::fmt::Display + '_ {
             item.if_supports_color(Stdout, $expr)
         }
     };

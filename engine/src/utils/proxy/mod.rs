@@ -47,7 +47,7 @@ impl<'a> Dispatch<'a> {
     ///
     /// Destroy this [ProxyPart].
     ///
-    fn destroy(&mut self) {
+    pub fn destroy(&mut self) {
         self.0.push(PostAction::Destroy(self.1));
     }
 }
