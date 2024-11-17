@@ -1,4 +1,4 @@
-use engine::core::stats::{AbilityModifier, AbilityScore};
+use xander_engine::core::stats::{AbilityModifier, AbilityScore};
 use std::mem::{size_of, transmute};
 
 #[rustfmt::skip]
