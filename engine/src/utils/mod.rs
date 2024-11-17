@@ -1,7 +1,10 @@
 pub mod meta;
 pub mod prettify;
+pub mod proxy;
 
 use std::marker::PhantomData;
+
+pub use proxy::{Proxy, ProxyPart};
 
 pub struct Annotated<Note, Value> {
     value: Value,
