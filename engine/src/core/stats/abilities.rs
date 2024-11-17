@@ -1,37 +1,61 @@
-use std::ops::Index;
+use paste::paste;
 
 use crate::utils::meta::Meta;
 
-use super::{AbilityScore, Stat, StatType};
-
 pub trait Ability: Meta<AbilityMeta> + Copy {
-    const META: AbilityMeta;
-}
-
-impl<A: Ability> StatType for A {
-    type Value = AbilityScore;
-
-    const NAME: &'static str = Self::META.name;
+    const META: &AbilityMeta;
 }
 
 pub struct AbilityMeta {
-    pub name: &'static str,
-    pub short: &'static str,
-    pub doc: &'static str,
+    name: &'static str,
+    short: &'static str,
+    doc: &'static str,
     index: usize,
+}
+
+impl AbilityMeta {
+    pub const fn name(&self) -> &str {
+        self.name
+    }
+
+    pub const fn short(&self) -> &str {
+        self.short
+    }
+
+    pub const fn doc(&self) -> &str {
+        self.doc
+    }
+
+    pub(super) fn index(&self) -> usize {
+        self.index
+    }
 }
 
 macro_rules! ability {
     ($id: ident, $meta: expr) => {
-        #[derive(Debug, Clone, Copy)]
-        pub struct $id;
+        paste! {
 
-        impl Ability for $id {
-            const META: AbilityMeta = $meta;
-        }
-        impl Meta<AbilityMeta> for $id {
-            fn meta(&self) -> &'static AbilityMeta {
-                &<Self as Ability>::META
+            #[derive(Debug, Clone, Copy)]
+            pub struct $id;
+
+            #[doc(hidden)]
+            const [<META_ $id:snake:upper>]: &AbilityMeta = &$meta;
+            impl Ability for $id {
+                const META: &'static AbilityMeta = [<META_ $id:snake:upper>];
+            }
+
+            impl Meta<AbilityMeta> for $id {
+                fn meta(&self) -> &'static AbilityMeta {
+                    [<META_ $id:snake:upper>]
+                }
+            }
+
+            impl std::ops::Deref for $id {
+                type Target = AbilityMeta;
+
+                fn deref(&self) -> &Self::Target {
+                    Self::META
+                }
             }
         }
     };
@@ -91,77 +115,3 @@ ability!(
         index: 5,
     }
 );
-
-#[repr(align(8))]
-pub struct AbilityScoreBlock {
-    str: Stat<Strength>,
-    dex: Stat<Dexterity>,
-    con: Stat<Constitution>,
-    int: Stat<Intelligence>,
-    wis: Stat<Wisdom>,
-    cha: Stat<Charisma>,
-}
-
-impl std::fmt::Debug for AbilityScoreBlock {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("AbilityScoreBlock")
-            .field("str", self.str.get())
-            .field("dex", self.dex.get())
-            .field("con", self.con.get())
-            .field("int", self.int.get())
-            .field("wis", self.wis.get())
-            .field("cha", self.cha.get())
-            .finish()
-    }
-}
-
-impl AbilityScoreBlock {
-    fn new(
-        str: Stat<Strength>,
-        dex: Stat<Dexterity>,
-        con: Stat<Constitution>,
-        int: Stat<Intelligence>,
-        wis: Stat<Wisdom>,
-        cha: Stat<Charisma>,
-    ) -> Self {
-        Self {
-            str,
-            dex,
-            con,
-            int,
-            wis,
-            cha,
-        }
-    }
-}
-
-impl<A: Ability + ?Sized> Index<A> for AbilityScoreBlock {
-    type Output = AbilityScore;
-
-    fn index(&self, _: A) -> &Self::Output {
-        // SAFETY: We are aligned to 8-bytes,
-        //         and indexes are all < 6 so our indexing is safe.
-        let ptr = self as *const Self as *const AbilityScore;
-        unsafe { ptr.add(A::META.index).as_ref_unchecked() }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::core::stats::{
-        abilities::{Ability, Strength},
-        AbilityScore, Stat,
-    };
-
-    use super::AbilityScoreBlock;
-
-    const fn s<A: Ability>(score: u8) -> Stat<A> {
-        Stat::new(AbilityScore::new(score).unwrap())
-    }
-
-    #[test]
-    fn test_block() {
-        let block = AbilityScoreBlock::new(s(15), s(17), s(12), s(9), s(10), s(7));
-        println!("{block:#?}")
-    }
-}

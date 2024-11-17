@@ -1,5 +1,3 @@
-use std::{fmt::Debug, marker::PhantomData};
-
 pub mod abilities;
 pub mod skills;
 pub mod stat_block;
@@ -20,13 +18,13 @@ pub struct AbilityScore(u8);
 
 impl std::fmt::Debug for AbilityScore {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} ({})", self.0, self.modifier())
+        write!(f, "{}", self.0)
     }
 }
 
 impl std::fmt::Display for AbilityScore {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} ({})", self.0, self.modifier())
+        write!(f, "{}", self.0)
     }
 }
 
@@ -104,32 +102,6 @@ impl std::fmt::Display for AbilityModifier {
 impl std::fmt::Debug for AbilityModifier {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         <Self as std::fmt::Display>::fmt(self, f)
-    }
-}
-
-pub trait StatType: Copy + Clone {
-    type Value: Copy + Clone;
-    const NAME: &'static str;
-}
-
-pub struct Stat<T: StatType>(T::Value, PhantomData<T>);
-
-impl<T: StatType> Stat<T> {
-    pub const fn new(value: T::Value) -> Self {
-        Self(value, PhantomData)
-    }
-
-    pub const fn get(&self) -> &T::Value {
-        &self.0
-    }
-}
-
-impl<T: StatType> std::fmt::Debug for Stat<T>
-where
-    T::Value: Debug,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} = {:?}", T::NAME, self.0)
     }
 }
 

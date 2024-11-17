@@ -15,11 +15,11 @@
 //! ```
 //!
 
-use std::{ops::{Add, Div, Mul, Sub}, ptr::fn_addr_eq as fn_eq};
-
+use std::{ops::{Add, Div, Mul, Sub, AddAssign, DivAssign, MulAssign, SubAssign}, ptr::fn_addr_eq as fn_eq};
+use paste::paste;
 use owo_colors::OwoColorize;
 
-use crate::utils::prettify;
+use crate::{core::stats::{AbilityModifier, AbilityScore}, utils::prettify};
 
 use super::Die;
 
@@ -34,7 +34,7 @@ use super::Die;
 /// 
 #[derive(Debug, Clone, PartialEq)]
 pub enum DExpr {
-    Modifier(i32),
+    Constant(i32),
     Die {
         die: Die,
         /// Has this die received both advantage and disadvantage to it
@@ -54,7 +54,7 @@ impl DExpr {
     ///
     pub fn advantage(self) -> Self {
         match self {
-            k @ Self::Modifier(_) => k,
+            k @ Self::Constant(_) => k,
             Self::Die {
                 die,
                 both_adv_dis: false,
@@ -104,7 +104,7 @@ impl DExpr {
     ///
     pub fn disadvantage(self) -> Self {
         match self {
-            k @ Self::Modifier(_) => k,
+            k @ Self::Constant(_) => k,
             Self::Die {
                 die,
                 both_adv_dis: false,
@@ -154,7 +154,7 @@ impl DExpr {
     /// 
     pub fn evaluate(&self) -> DEvalTree {
         match self {
-            DExpr::Modifier(c) => DEvalTree::Modifier(*c),
+            DExpr::Constant(c) => DEvalTree::Modifier(*c),
             DExpr::Die { die, .. } => DEvalTree::Roll(die.roll()),
             DExpr::Advantage(die) => DEvalTree::Advantage(die.roll(), die.roll()),
             DExpr::Disadvantage(die) => DEvalTree::Disadvantage(die.roll(), die.roll()),
@@ -171,6 +171,13 @@ impl DExpr {
                 DEvalTree::Div(Box::new(left.evaluate()), Box::new(right.evaluate()))
             }
         }
+    }
+
+    ///
+    /// Immediately get the result of this expression.
+    /// 
+    pub fn result(&self) -> i32 {
+        self.evaluate().result()
     }
 }
 
@@ -354,7 +361,7 @@ impl Bracketed for DExpr {
     
     fn is_unary(&self) -> bool {
         match self {
-            Self::Modifier(_) | Self::Die {.. } | Self::Advantage(..) | Self::Disadvantage(..) => true,
+            Self::Constant(_) | Self::Die {.. } | Self::Advantage(..) | Self::Disadvantage(..) => true,
             Self::Add(..) | Self::Sub(..) | Self::Mul(..) | Self::Div(..) => false,
         }
     }
@@ -363,7 +370,7 @@ impl Bracketed for DExpr {
 impl std::fmt::Display for DExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Modifier(modifier) => write!(f, "{}", prettify::modifier(modifier)),
+            Self::Constant(modifier) => write!(f, "{}", prettify::modifier(modifier)),
             Self::Die { die, .. } => write!(f, "{}", prettify::die(die)),
             Self::Advantage(die) => {
                 write!(f, "Adv({})", prettify::die(die))
@@ -500,7 +507,19 @@ impl Die {
 
 impl From<i32> for DExpr {
     fn from(die: i32) -> Self {
-        Self::Modifier(die)
+        Self::Constant(die)
+    }
+}
+
+impl From<AbilityScore> for DExpr {
+    fn from(value: AbilityScore) -> Self {
+        Self::Constant(value.get() as i32)
+    }
+}
+
+impl From<AbilityModifier> for DExpr {
+    fn from(value: AbilityModifier) -> Self {
+        Self::Constant(value.get() as i32)
     }
 }
 
@@ -509,15 +528,29 @@ impl From<i32> for DExpr {
 #[doc(hidden)]
 mod macros {
     macro_rules! impl_bin_ops {
-        ([$($this: ty),*], [$(($tr: ident, $method: ident)),*], [$($rhs: ty),*]) => {
+        ([$($this: ty),*], [$(($tr: ident $( @ $eq: tt)?, $method: ident)),*], [$($rhs: ty),*]) => {
             macro_rules! inner2 {
                 ($this1: ty, $tr1: ident, $method1: ident) => {
                     $(
+                        
                         impl $tr1<$rhs> for $this1 {
                             type Output = DExpr;
                             fn $method1(self, rhs: $rhs) -> Self::Output {
                                 DExpr::$tr1(Box::new(self.into()), Box::new(rhs.into()))
                             }
+                        }
+                        
+                    )*
+                };
+                ($this1: ty, $tr1: ident =, $method1: ident) => {
+                    $(
+                        paste! {
+                            impl [<$tr1 Assign>]<$rhs> for $this1 {
+                                fn [<$method1 _assign>](&mut self, rhs: $rhs) {
+                                    *self = DExpr::$tr1(Box::new(self.clone().into()), Box::new(rhs.into()));
+                                }
+                            }
+                            
                         }
                     )*
                 }
@@ -526,7 +559,7 @@ mod macros {
             macro_rules! inner1 {
                 ($this1: ty) => {
                     $(
-                        inner2!($this1, $tr, $method);
+                        inner2!($this1, $tr $($eq)?, $method);
                     )*
                 }
             }
@@ -549,10 +582,13 @@ mod macros {
         DExp    +-*÷    +-      +-  
         Die     +-*÷    +-      +-  
 
+    All DExpr operations also have their *Assign variants. 
+
 */
 macros::impl_bin_ops!([DExpr, Die], [(Add, add), (Sub, sub)                        ], [DExpr, Die]);
 macros::impl_bin_ops!([i32       ], [(Add, add), (Sub, sub), (Mul, mul), (Div, div)], [DExpr, Die]);
 macros::impl_bin_ops!([DExpr, Die], [(Add, add), (Sub, sub), (Mul, mul), (Div, div)], [i32       ]);
+macros::impl_bin_ops!([DExpr], [(Add @=, add), (Sub @=, sub), (Mul @=, mul), (Div @=, div)], [i32, DExpr, Die]);
 
 #[cfg(test)]
 mod tests {
@@ -613,7 +649,7 @@ mod tests {
     fn test_expr() {
         dice::set_seed(0); // DO NOT CHANGE THIS SEED!
         let expr = D6 + D10 - 2 * 10 + D10 * 13;
-        assert_matches!(expr, DExpr::Add(box DExpr::Sub(box DExpr::Add(box DExpr::Die { die: D6, both_adv_dis: false }, box DExpr::Die { die: D10, both_adv_dis: false} ), box DExpr::Modifier(20)), box DExpr::Mul(box DExpr::Die { die: D10, both_adv_dis: false }, box DExpr::Modifier(13))));
+        assert_matches!(expr, DExpr::Add(box DExpr::Sub(box DExpr::Add(box DExpr::Die { die: D6, both_adv_dis: false }, box DExpr::Die { die: D10, both_adv_dis: false} ), box DExpr::Constant(20)), box DExpr::Mul(box DExpr::Die { die: D10, both_adv_dis: false }, box DExpr::Constant(13))));
         let eval = expr.evaluate();
         assert_matches!(eval, DEvalTree::Add(box DEvalTree::Sub(box DEvalTree::Add(box DEvalTree::Roll(5), box DEvalTree::Roll(6)), box DEvalTree::Modifier(20)), box DEvalTree::Mul(box DEvalTree::Roll(9), box DEvalTree::Modifier(13))));
         assert_eq!(eval.result(), 108);
@@ -622,6 +658,16 @@ mod tests {
             let st = eval.to_string();
             assert_eq!(st, "5 + 6 - 20 + 9 * 13");
         });
+
+        let expr1 = D10 + 2;
+
+        let expr2 = {
+            let mut expr: DExpr = D10.into();
+            expr += 2;
+            expr
+        };
+        
+        assert_eq!(expr1, expr2);
     }
 
     #[test]

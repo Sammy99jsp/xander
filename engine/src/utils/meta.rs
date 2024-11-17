@@ -2,6 +2,9 @@
 //! Runtime metadata for runtime tracking.
 //!
 
-pub trait Meta<Table> {
+use std::ops::Deref;
+
+pub trait Meta<Table> : Deref<Target = Table> {
     fn meta(&self) -> &'static Table;
 }
+
