@@ -2,8 +2,8 @@ use std::{
     cell::{Cell, RefCell},
     collections::HashMap,
     fmt::Display,
-    rc::{Rc, Weak},
     sync::LazyLock,
+    sync::{Arc, Weak},
 };
 
 use serde::{Deserialize, Deserializer};
@@ -553,7 +553,7 @@ pub struct StatBlockRaw {
 }
 
 impl StatBlockRaw {
-    pub fn construct(self) -> Rc<StatBlock> {
+    pub fn construct(self) -> Arc<StatBlock> {
         let Self {
             name,
             ty,
@@ -569,7 +569,7 @@ impl StatBlockRaw {
 
         let is_monster = matches!(ty, CreatureTypeRaw::Monster(_));
 
-        let s = Rc::new_cyclic(|this| StatBlock {
+        let s = Arc::new_cyclic(|this| StatBlock {
             name,
             ty: ty.construct(this.clone()),
             size,

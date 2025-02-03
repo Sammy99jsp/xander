@@ -1,4 +1,4 @@
-use std::{ops::Deref, rc::Rc};
+use std::{ops::Deref, sync::Arc};
 
 use serde::Deserialize;
 
@@ -7,7 +7,7 @@ use crate::serde::StatBlockRaw;
 
 #[derive(Debug, Deserialize)]
 #[serde(from = "StatBlockRaw")]
-pub struct Monster(Rc<StatBlock>);
+pub struct Monster(Arc<StatBlock>);
 
 impl From<StatBlockRaw> for Monster {
     fn from(value: StatBlockRaw) -> Self {

@@ -1,7 +1,7 @@
 use std::{
     fmt::{Debug, Display},
     num::NonZeroU32,
-    rc::Weak,
+    sync::Weak,
 };
 
 use serde::Deserialize;

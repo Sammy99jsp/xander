@@ -1,4 +1,4 @@
-use std::{cell::Cell, marker::PhantomData, ops::Index, rc::Weak};
+use std::{cell::Cell, marker::PhantomData, ops::Index, sync::Weak};
 
 use serde::Deserialize;
 

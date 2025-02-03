@@ -7,7 +7,7 @@ use std::{
     fmt::{Display, Formatter},
     ops::{Add, BitOr, Deref},
     ptr,
-    rc::Weak,
+    sync::Weak,
     usize,
 };
 
@@ -336,7 +336,7 @@ mod tests {
     // * (Resistance, Vulnerability, Immunity) effects ( / 2, * 2, * 0 )
     // * (Resistance, Vulnerability) ordering
     // * (Resistance, Vulnerability, Immunity) idempotence (no stacking)
-    use std::rc::Rc;
+    use std::sync::Arc;
 
     use crate::core::{
         dice::DEvalTree,
@@ -361,7 +361,7 @@ mod tests {
     //     //       there should be a way to do pre-init
     //     //       that should be memory safe.
     //     unsafe {
-    //         let rat = Rc::get_mut_unchecked(&mut rat);
+    //         let rat = Arc::get_mut_unchecked(&mut rat);
     //         rat.damages.add_effect(Fire, Vulnerability);
     //         rat.damages.add_effect(Fire, Resistance);
     //     };

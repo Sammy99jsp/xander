@@ -3,7 +3,7 @@ use std::{
     fmt::Debug,
     mem::{self, transmute},
     ops::Deref,
-    rc::{Rc, Weak},
+    sync::{Arc, Weak},
     sync::{Mutex, MutexGuard},
 };
 
@@ -14,7 +14,7 @@ pub trait Ephemeral {
     fn is_alive(&self) -> bool;
 }
 
-impl<E: Ephemeral> Ephemeral for Rc<E> {
+impl<E: Ephemeral> Ephemeral for Arc<E> {
     fn is_alive(&self) -> bool {
         self.as_ref().is_alive()
     }
@@ -38,17 +38,15 @@ impl<C: ?Sized> Clone for Lifespan<C> {
 }
 
 impl Lifespan {
-    pub fn of<T>(source: &Rc<T>) -> Self {
+    pub fn of<T>(source: &Arc<T>) -> Self {
         const { assert!(mem::size_of::<Weak<T>>() == mem::size_of::<Weak<()>>()) }
-        Lifespan::Of(unsafe { transmute::<Weak<T>, Weak<()>>(Rc::downgrade(source)) })
+        Lifespan::Of(unsafe { transmute::<Weak<T>, Weak<()>>(Arc::downgrade(source)) })
     }
-
-
 }
 
 impl<C: ?Sized> Lifespan<C> {
-    pub fn of_this(source: &Rc<C>) -> Self {
-        Lifespan::Of(Rc::downgrade(source))
+    pub fn of_this(source: &Arc<C>) -> Self {
+        Lifespan::Of(Arc::downgrade(source))
     }
 
     pub fn as_weak(&self) -> Option<Weak<C>> {

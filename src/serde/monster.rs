@@ -1,4 +1,4 @@
-use std::{fmt::Display, rc::Weak};
+use std::{fmt::Display, sync::Weak};
 
 use serde::Deserialize;
 

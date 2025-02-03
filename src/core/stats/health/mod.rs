@@ -8,7 +8,7 @@ use std::{
     cell::{Cell, RefCell},
     collections::HashMap,
     fmt::Debug,
-    rc::{Rc, Weak},
+    sync::{Arc, Weak},
 };
 
 use conditions::{Condition, ConditionApplication, ConditionStatus, Unconscious};
@@ -118,7 +118,7 @@ pub struct HP {
     pub current: Cell<u32>,
     pub max: Proxy<StatBlock, u32>,
     pub temp: RefCell<RSlot<TempHP>>,
-    pub death_saves: RefCell<Option<Rc<DeathSaves>>>,
+    pub death_saves: RefCell<Option<Arc<DeathSaves>>>,
 }
 
 impl HP {
@@ -397,7 +397,7 @@ impl HitDie {
         }
     }
 
-    pub fn derived(source: &Rc<dyn Cause>, die: Die) -> Self {
+    pub fn derived(source: &Arc<dyn Cause>, die: Die) -> Self {
         Self {
             source: Lifespan::of_this(source),
             die,
@@ -417,13 +417,13 @@ pub struct DeathSaves {
 }
 
 impl DeathSaves {
-    pub fn new(stat: &StatBlock) -> Rc<Self> {
-        let this = Rc::new(Self {
+    pub fn new(stat: &StatBlock) -> Arc<Self> {
+        let this = Arc::new(Self {
             successes: 0,
             failures: 0,
         });
 
-        let weak = Rc::downgrade(&this);
+        let weak = Arc::downgrade(&this);
         todo!("Do action effects with Weak<Self> and the StatBlock");
 
         this

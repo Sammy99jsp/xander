@@ -1,6 +1,6 @@
 pub mod parts;
 
-use std::{cell::RefCell, fmt::Debug, ops::Deref, rc::Weak};
+use std::{cell::RefCell, fmt::Debug, ops::Deref, sync::Weak};
 
 pub use parts::Anonymous;
 pub trait ProxyPart<Ctx, Value>: Debug {

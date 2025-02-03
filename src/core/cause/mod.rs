@@ -9,7 +9,7 @@
 //! ### Implementation
 //!
 
-use std::{fmt::Debug, rc::Weak};
+use std::{fmt::Debug, sync::Weak};
 
 use crate::utils::meta::Meta;
 

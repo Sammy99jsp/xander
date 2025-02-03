@@ -6,7 +6,7 @@ use std::{
     marker::PhantomData,
     num::NonZeroU8,
     ptr,
-    rc::{Rc, Weak},
+    sync::{Arc, Weak},
 };
 
 use crate::{
@@ -90,7 +90,7 @@ use self::ConditionApplication as Effect;
 
 use super::ConditionApplicationResult;
 
-type EffectSlot = RSlot<Rc<Effect>>;
+type EffectSlot = RSlot<Arc<Effect>>;
 #[derive(Debug)]
 pub struct ConditionStatus {
     weak: Weak<StatBlock>,
@@ -147,7 +147,7 @@ impl ConditionStatus {
             ptr.as_mut_unchecked()
         };
 
-        let effect = Rc::new(effect);
+        let effect = Arc::new(effect);
 
         let effect_fn = effect.condition.effect;
         let lifespan = Lifespan::of(&effect);

@@ -1,6 +1,6 @@
 //! Armor Class
 
-use std::rc::Weak;
+use std::sync::Weak;
 
 use crate::{
     core::{cause::Cause, dice::DExpr},
@@ -27,7 +27,6 @@ impl AC {
     pub fn value(&self) -> i32 {
         self.get().ac.result()
     }
-
 
     /// Checks if a "to hit" roll hits this AC.
     #[inline]
