@@ -1,4 +1,8 @@
-use std::{cell::Cell, marker::PhantomData, ops::Index, sync::Weak};
+use std::{
+    marker::PhantomData,
+    ops::Index,
+    sync::{RwLock, Weak},
+};
 
 use serde::Deserialize;
 
@@ -73,7 +77,7 @@ pub struct StatBlock {
     pub proficiency_bonus: ProficiencyBonus,
 
     /// Is this creature dead?
-    pub dead: Cell<Option<Dead>>,
+    pub dead: RwLock<Option<Dead>>,
 }
 impl StatBlock {
     /// Heal this creature (up to its max HP).
@@ -88,7 +92,7 @@ impl StatBlock {
     }
 
     /// Attempt to apply a condition (via [ConditionApplication])
-    /// to this creature, returning if it 
+    /// to this creature, returning if it
     pub fn apply(&self, cond: ConditionApplication) -> ConditionApplicationResult {
         self.health.apply_condition(cond)
     }
@@ -112,12 +116,15 @@ impl StatBlock {
         self.health
             .hp
             .temp
-            .borrow()
+            .read()
+            .expect("Not poisoned.")
             .get()
             .map(|TempHP { amount, .. }| *amount)
     }
 
- 
+    pub fn is_dead(&self) -> bool {
+        self.dead.read().expect("No poisoning!").is_some()
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Deserialize)]

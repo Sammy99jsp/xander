@@ -2,8 +2,7 @@ use std::{
     cell::{Cell, RefCell},
     collections::HashMap,
     fmt::Display,
-    sync::LazyLock,
-    sync::{Arc, Weak},
+    sync::{Arc, LazyLock, RwLock, Weak},
 };
 
 use serde::{Deserialize, Deserializer};
@@ -481,7 +480,7 @@ impl HealthRaw {
                 this.clone(),
                 Proxy::new(max_hp.result().max(1) as u32, this.clone()),
             ),
-            conditions: RefCell::new(ConditionStatus::new(this)),
+            conditions: RwLock::new(ConditionStatus::new(this)),
             hit_dice,
         }
     }
@@ -591,11 +590,11 @@ impl StatBlockRaw {
                     ProficiencyBonus::derived(this.clone())
                 }
             },
-            dead: Cell::default(),
+            dead: RwLock::default(),
         });
 
         // TODO: Fix this evil hack.
-        s.health.hp.current.set(s.health.max_hp());
+        *s.health.hp.current.write().expect("Not poisoned.") = s.health.max_hp();
 
         s
     }

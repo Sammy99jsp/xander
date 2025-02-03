@@ -5,10 +5,9 @@
 pub mod conditions;
 
 use std::{
-    cell::{Cell, RefCell},
     collections::HashMap,
     fmt::Debug,
-    sync::{Arc, Weak},
+    sync::{Arc, RwLock, Weak},
 };
 
 use conditions::{Condition, ConditionApplication, ConditionStatus, Unconscious};
@@ -37,7 +36,7 @@ type Value = u32;
 pub struct Health {
     pub weak: Weak<StatBlock>,
     pub hp: HP,
-    pub conditions: RefCell<ConditionStatus>,
+    pub conditions: RwLock<ConditionStatus>,
     pub hit_dice: HitDice,
 }
 
@@ -46,13 +45,13 @@ impl Health {
         Health {
             weak: this.clone(),
             hp: HP::new(this.clone(), max_hp),
-            conditions: RefCell::new(ConditionStatus::new(this.clone())),
+            conditions: RwLock::new(ConditionStatus::new(this.clone())),
             hit_dice: HitDice::new(),
         }
     }
 
     pub fn current_hp(&self) -> u32 {
-        self.hp.current.get()
+        *self.hp.current.read().expect("Not poisoned")
     }
 
     pub fn max_hp(&self) -> u32 {
@@ -63,7 +62,7 @@ impl Health {
         let this = self.weak.upgrade().expect("Stat block present");
         match this.condition_immunities.is_immune(cond.condition) {
             r @ ConditionApplicationResult::Successful => {
-                let mut conditions = self.conditions.borrow_mut();
+                let mut conditions = self.conditions.write().expect("Not poisoned.");
                 conditions.apply(cond);
                 r
             }
@@ -115,26 +114,26 @@ pub enum ConditionApplicationResult {
 pub struct HP {
     stat_block: Weak<StatBlock>,
 
-    pub current: Cell<u32>,
+    pub current: RwLock<u32>,
     pub max: Proxy<StatBlock, u32>,
-    pub temp: RefCell<RSlot<TempHP>>,
-    pub death_saves: RefCell<Option<Arc<DeathSaves>>>,
+    pub temp: RwLock<RSlot<TempHP>>,
+    pub death_saves: RwLock<Option<Arc<DeathSaves>>>,
 }
 
 impl HP {
     pub fn new(stats: Weak<StatBlock>, max: Proxy<StatBlock, u32>) -> Self {
         Self {
             stat_block: stats,
-            current: Cell::new(0), // Avoid setting this before init!
+            current: RwLock::new(0), // Avoid setting this before init!
             max,
             temp: Default::default(),
-            death_saves: RefCell::new(None),
+            death_saves: RwLock::new(None),
         }
     }
 
     fn damage(&self, mut damage: u32) -> DamageResult {
         // Handle any temporary hit points.
-        let mut temp_hp = self.temp.borrow_mut();
+        let mut temp_hp = self.temp.write().expect("Poisoned");
         match temp_hp.get_mut() {
             None => (),
             Some(TempHP { amount: tmp_hp, .. }) if *tmp_hp > damage => {
@@ -149,17 +148,18 @@ impl HP {
             }
         }
 
-        let current = self.current.get();
+        let current = *self.current.read().expect("Not poisoned.");
 
         // Calculate excess damage
         // if this entity is taken to 0 HP as a result
         // of this damage.
         let excess = if damage >= current {
             let excess = damage - current;
-            self.current.set(0);
+            *self.current.write().expect("Not poisoned.") = 0;
             Some(excess)
         } else {
-            self.current.update(|current| current - damage);
+            let current = *self.current.read().expect("Not poisoned.");
+            *self.current.write().expect("Not poisoned!") = current - damage;
             None
         };
 
@@ -173,7 +173,7 @@ impl HP {
             Some(dmg) if dmg >= self.max.get() => {
                 // Declare ourselves dead.
                 let creature = self.stat_block.upgrade().unwrap();
-                creature.dead.set(Some(Dead));
+                creature.dead.write().expect("No poisoned.").replace(Dead);
                 DamageResult::Death
             }
 
@@ -184,13 +184,14 @@ impl HP {
             Some(_) => {
                 // Start death saves.
                 let creature = self.stat_block.upgrade().unwrap();
-                let mut death_saves = self.death_saves.borrow_mut();
+                let mut death_saves = self.death_saves.write().expect("Not poisoned.");
                 *death_saves = Some(DeathSaves::new(creature.as_ref()));
 
                 creature
                     .health
                     .conditions
-                    .borrow_mut()
+                    .write()
+                    .expect("Not poisoned")
                     .apply(ConditionApplication {
                         lifespan: Lifespan::Indefinite,
                         condition: Unconscious::META,
@@ -204,12 +205,12 @@ impl HP {
     pub fn heal(&self, health: u32) {
         // If we are dead, do nothing.
         let creature = self.stat_block.upgrade().unwrap();
-        if creature.dead.get() == Some(Dead) {
+        if creature.dead.read().expect("Not poisoned!").as_ref() == Some(&Dead) {
             return;
         }
 
         // Otherwise, stop the current death saves.
-        let mut death_saves = self.death_saves.borrow_mut();
+        let mut death_saves = self.death_saves.write().expect("Not poisoned.");
         if death_saves.is_some() {
             death_saves.take();
         }
@@ -217,8 +218,8 @@ impl HP {
         // SRD:
         // "Any hit points regained in excess of
         // [a creature's hit point maximum] are lost."
-        self.current
-            .update(|current| (current + health).min(self.max.get()));
+        let mut current = self.current.write().expect("Not poisoned.");
+        *current = (*current + health).min(self.max.get())
     }
 
     pub fn temporary(&self, new: TempHP) {
@@ -226,7 +227,7 @@ impl HP {
         // "[Temporary hit points] can't be added together.
         // If you have temporary hit points and receive more of them,
         // you decide whether to keep the ones you have or to gain the new ones. "
-        let existing = self.temp.borrow_mut();
+        let existing = self.temp.write().expect("Not poisoned.");
 
         if todo!("Decision!") {
             existing.replace(new);

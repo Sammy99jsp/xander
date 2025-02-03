@@ -6,7 +6,7 @@ use std::marker::PhantomData;
 
 use super::{Dispatch, ProxyPart};
 
-pub trait ProxyComputation<Ctx, Value> = for<'a> FnMut(&'a Ctx, &mut Value, Dispatch);
+pub trait ProxyComputation<Ctx, Value> = for<'a> FnMut(&'a Ctx, &mut Value, Dispatch) + Send + Sync;
 
 ///
 /// The proxy with no name!
@@ -35,7 +35,7 @@ impl<Ctx, Value> std::fmt::Debug for Anonymous<Ctx, Value> {
     }
 }
 
-impl<Ctx, Value> ProxyPart<Ctx, Value> for Anonymous<Ctx, Value> {
+impl<Ctx: Send + Sync, Value: Send + Sync> ProxyPart<Ctx, Value> for Anonymous<Ctx, Value> {
     fn compute(&mut self, ctx: &Ctx, prev: &mut Value, dispatch: Dispatch) {
         self.0.call_mut((ctx, prev, dispatch))
     }

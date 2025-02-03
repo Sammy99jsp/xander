@@ -23,7 +23,7 @@ pub struct CauseMeta {
     ty: CauseType,
 }
 
-pub trait Cause: Meta<CauseMeta> + Debug {}
+pub trait Cause: Meta<CauseMeta> + Debug + Send + Sync {}
 
 ///
 /// Outcomes due to a particular [Effect].

@@ -1,9 +1,14 @@
 pub mod parts;
 
-use std::{cell::RefCell, fmt::Debug, ops::Deref, sync::Weak};
+use std::{
+    cell::RefCell,
+    fmt::Debug,
+    ops::Deref,
+    sync::{RwLock, Weak},
+};
 
 pub use parts::Anonymous;
-pub trait ProxyPart<Ctx, Value>: Debug {
+pub trait ProxyPart<Ctx, Value>: Debug + Sync + Send {
     fn compute(&mut self, ctx: &Ctx, prev: &mut Value, dispatch: Dispatch<'_>);
 }
 
@@ -55,7 +60,7 @@ impl<'a> Dispatch<'a> {
 pub struct Proxy<Ctx, Value> {
     ctx: Weak<Ctx>,
     value: ProxyInner<Ctx, Value>,
-    overrides: RefCell<Vec<Box<dyn ProxyPart<Ctx, Value>>>>,
+    overrides: RwLock<Vec<Box<dyn ProxyPart<Ctx, Value>>>>,
 }
 
 impl<Ctx, Value: Debug> std::fmt::Debug for Proxy<Ctx, Value> {
@@ -67,7 +72,7 @@ impl<Ctx, Value: Debug> std::fmt::Debug for Proxy<Ctx, Value> {
             })
             .finish()?;
 
-        let overrides = self.overrides.borrow();
+        let overrides = self.overrides.read().expect("Not poisoned.");
         if !overrides.is_empty() {
             if !f.alternate() {
                 write!(f, " → ")?;
@@ -95,7 +100,7 @@ impl<Ctx, Value> Proxy<Ctx, Value> {
         Self {
             ctx,
             value: ProxyInner::Const(initial),
-            overrides: RefCell::new(vec![]),
+            overrides: RwLock::new(vec![]),
         }
     }
 
@@ -103,7 +108,7 @@ impl<Ctx, Value> Proxy<Ctx, Value> {
         Self {
             ctx,
             value: ProxyInner::Derived(derivation),
-            overrides: RefCell::new(vec![]),
+            overrides: RwLock::new(vec![]),
         }
     }
 
@@ -111,7 +116,10 @@ impl<Ctx, Value> Proxy<Ctx, Value> {
     where
         P: ProxyPart<Ctx, Value> + 'static,
     {
-        self.overrides.borrow_mut().push(Box::new(part))
+        self.overrides
+            .write()
+            .expect("Not poisoned.")
+            .push(Box::new(part))
     }
 
     pub fn get(&self) -> Value
@@ -126,7 +134,13 @@ impl<Ctx, Value> Proxy<Ctx, Value> {
 
         let mut dispatcher = vec![];
 
-        for (idx, part) in self.overrides.borrow_mut().iter_mut().enumerate() {
+        for (idx, part) in self
+            .overrides
+            .write()
+            .expect("Not poisoned.")
+            .iter_mut()
+            .enumerate()
+        {
             part.compute(ctx, &mut value, Dispatch(&mut dispatcher, idx));
         }
 
