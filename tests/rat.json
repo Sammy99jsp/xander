@@ -1,0 +1,27 @@
+{
+    "name": "Rat",
+    "type": {
+        "type": "monster",
+        "cr": 0,
+        "xp": 10
+    },
+    "ac": 10,
+    "size": "tiny",
+    "scores": {
+        "str": 2,
+        "dex": 11,
+        "con": 9,
+        "int": 2,
+        "wis": 10,
+        "cha": 4
+    },
+    "skills": {
+        "history": "P"
+    },
+    "damage_effectors": {
+        "fire": "R"
+    },
+    "health": {
+        "max_hp": "1d4 + 2"
+    }
+}

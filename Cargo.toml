@@ -1,0 +1,26 @@
+[package]
+name = "xander"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "xander"
+crate-type = ["lib", "cdylib",]
+
+[[bin]]
+name = "rat"
+path = "bin/rat.rs"
+
+[dependencies]
+owo-colors = { version = "4.1.0", features = ["supports-colors"] }
+paste = "1.0.15"
+rand = "0.8.5"
+pyo3 = { version = "0.23.3", features = [
+    "abi3",
+    "abi3-py312",
+    "extension-module",
+] }
+serde = { version = "1.0.217", features = ["derive"] }
+chumsky = { version = "0.9.3", features = ["nightly"] }
+toml = "0.8.19"
+serde_json = "1.0.138"
