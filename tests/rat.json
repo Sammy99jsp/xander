@@ -2,11 +2,16 @@
     "name": "Rat",
     "type": {
         "type": "monster",
+        "kind": "beast",
+        "alignment": "unaligned",
         "cr": 0,
         "xp": 10
     },
     "ac": 10,
     "size": "tiny",
+    "speed": {
+        "walking": 20
+    },
     "scores": {
         "str": 2,
         "dex": 11,
@@ -15,13 +20,24 @@
         "wis": 10,
         "cha": 4
     },
-    "skills": {
-        "history": "P"
-    },
-    "damage_effectors": {
-        "fire": "R"
-    },
     "health": {
-        "max_hp": "1d4 + 2"
-    }
+        "max_hp": "1d4 - 1"
+    },
+    "actions": [
+        {
+            "type": "attack",
+            "attack_type": "melee",
+            "name": "Bite",
+            "to_hit": 0,
+            "target": "single",
+            "range": "reach",
+            "damage": [
+                [
+                    "1",
+                    "piercing"
+                ]
+            ],
+            "description": ""
+        }
+    ]
 }

@@ -1,7 +1,6 @@
 pub mod parts;
 
 use std::{
-    cell::RefCell,
     fmt::Debug,
     ops::Deref,
     sync::{RwLock, Weak},
@@ -96,11 +95,11 @@ impl<Ctx, Value: Debug> std::fmt::Debug for Proxy<Ctx, Value> {
 }
 
 impl<Ctx, Value> Proxy<Ctx, Value> {
-    pub fn new(initial: Value, ctx: Weak<Ctx>) -> Self {
+    pub const fn new(initial: Value, ctx: Weak<Ctx>) -> Self {
         Self {
             ctx,
             value: ProxyInner::Const(initial),
-            overrides: RwLock::new(vec![]),
+            overrides: RwLock::new(Vec::new()),
         }
     }
 

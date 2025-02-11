@@ -1,4 +1,5 @@
 use std::{
+    fmt::Display,
     marker::PhantomData,
     ops::Index,
     sync::{RwLock, Weak},
@@ -8,15 +9,15 @@ use serde::Deserialize;
 
 use crate::{
     core::{
-        dice::{DEvalTree, DExpr},
-        stats::{
+        // combat::turn::action::Actions,
+        combat::{initiative_die::InitiativeDie, turn::action::Actions, Initiative}, dice::{DEvalTree, DExpr, D20}, stats::{
             abilities::{
                 Ability, Charisma as CHA, Constitution as CON, Dexterity as DEX,
                 Intelligence as INT, Strength as STR, Wisdom as WIS,
             },
             skills::*,
             AbilityScore,
-        },
+        }
     },
     utils::{proxy::Dispatch, Proxy, ProxyPart},
 };
@@ -28,7 +29,7 @@ use super::{
         conditions::{ConditionApplication, ConditionImmunities},
         ConditionApplicationResult, DamageTaken, Health, TempHP,
     },
-    monsters::Monster,
+    monster::{speed::Speeds, Monster}, /* speed::Speeds, */
 };
 
 #[macro_export]
@@ -64,10 +65,11 @@ pub struct StatBlock {
     pub name: String,
     pub ty: CreatureType,
     pub size: Size,
-
+    pub speeds: Speeds,
     pub scores: AbilityScores,
     pub modifiers: AbilityModifiers,
     pub skills: Skills,
+    pub saves: Saves,
     pub damage_effectors: DamageEffectors,
     pub condition_immunities: ConditionImmunities,
 
@@ -75,10 +77,12 @@ pub struct StatBlock {
     pub ac: AC,
 
     pub proficiency_bonus: ProficiencyBonus,
-
+    pub initiative: InitiativeDie,
+    pub actions: Actions,
     /// Is this creature dead?
     pub dead: RwLock<Option<Dead>>,
 }
+
 impl StatBlock {
     /// Heal this creature (up to its max HP).
     pub fn heal(&self, health: u32) {
@@ -127,7 +131,7 @@ impl StatBlock {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Size {
     Tiny,
@@ -136,6 +140,22 @@ pub enum Size {
     Large,
     Huge,
     Gargantuan,
+    // TODO: This *technically* doesn't follow the spec:
+    //       Gargantuan creatures can be bigger than 20 x 20 ft.
+    //       (and also not have a 'square' base).
+}
+
+impl Display for Size {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Size::Tiny => write!(f, "Tiny"),
+            Size::Small => write!(f, "Small"),
+            Size::Medium => write!(f, "Medium"),
+            Size::Large => write!(f, "Large"),
+            Size::Huge => write!(f, "Huge"),
+            Size::Gargantuan => write!(f, "Gargantuan"),
+        }
+    }
 }
 
 /// A marker that signifies this creature has died.
@@ -263,12 +283,12 @@ proxy_wrapper!(AbilityModifierP<A: Ability>, Proxy<StatBlock, DExpr>);
 #[repr(C)]
 #[derive(Debug)]
 pub struct AbilityModifiers {
-    strength: AbilityModifierP<STR>,
-    dexterity: AbilityModifierP<DEX>,
-    constitution: AbilityModifierP<CON>,
-    intelligence: AbilityModifierP<INT>,
-    wisdom: AbilityModifierP<WIS>,
-    charisma: AbilityModifierP<CHA>,
+    pub strength: AbilityModifierP<STR>,
+    pub dexterity: AbilityModifierP<DEX>,
+    pub constitution: AbilityModifierP<CON>,
+    pub intelligence: AbilityModifierP<INT>,
+    pub wisdom: AbilityModifierP<WIS>,
+    pub charisma: AbilityModifierP<CHA>,
 }
 
 impl<A: Ability> AbilityModifierP<A> {
@@ -336,6 +356,42 @@ impl<A: Ability> Index<A> for AbilityModifiers {
 }
 
 proxy_wrapper!(SkillP<S: Skill>, Proxy<StatBlock, DExpr>);
+
+#[derive(Debug)]
+pub struct Saves {
+    pub strength: SaveP<STR>,
+    pub dexterity: SaveP<DEX>,
+    pub constitution: SaveP<CON>,
+    pub intelligence: SaveP<INT>,
+    pub wisdom: SaveP<WIS>,
+    pub charisma: SaveP<CHA>,
+    // TODO:    More miscellaneous saves against more abstract
+    //          things.
+}
+
+proxy_wrapper!(SaveP<A: Ability>, Proxy<StatBlock, DExpr>);
+
+impl Saves {
+    pub fn new(weak: Weak<StatBlock>) -> Self {
+        Self {
+            strength: SaveP::new(weak.clone()),
+            dexterity: SaveP::new(weak.clone()),
+            constitution: SaveP::new(weak.clone()),
+            intelligence: SaveP::new(weak.clone()),
+            wisdom: SaveP::new(weak.clone()),
+            charisma: SaveP::new(weak),
+        }
+    }
+}
+
+impl<A: Ability> SaveP<A> {
+    pub fn new(weak: Weak<StatBlock>) -> Self {
+        Self(
+            Proxy::derived(|stats| D20 + stats.modifiers.get::<A>().get(), weak),
+            PhantomData,
+        )
+    }
+}
 
 #[allow(unused)]
 #[derive(Debug)]

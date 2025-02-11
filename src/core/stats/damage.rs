@@ -1,22 +1,23 @@
 use crate::{
-    core::dice::DEvalTree,
+    core::{
+        combat::Combatant,
+        dice::{DEvalTree, DExpr},
+    },
     utils::{meta::Meta, proxy::Dispatch, ProxyPart},
 };
 use paste::paste;
 use std::{
-    fmt::{Display, Formatter},
-    ops::{Add, BitOr, Deref},
-    ptr,
-    sync::Weak,
-    usize,
+    fmt::{Display, Formatter, Write},
+    ops::{Add, AddAssign, BitOr, Deref},
+    sync::{LazyLock, Weak},
 };
 
 use super::stat_block::StatBlock;
 
 #[derive(Debug)]
 pub struct DamageTypeMeta {
-    name: &'static str,
-    doc: &'static str,
+    pub name: &'static str,
+    pub description: &'static str,
     index: usize,
 }
 
@@ -25,7 +26,7 @@ impl DamageTypeMeta {
         self.name
     }
     pub const fn doc(&self) -> &'static str {
-        self.doc
+        self.description
     }
     pub(super) const fn index(&self) -> usize {
         self.index
@@ -46,7 +47,7 @@ macro_rules! damage_type {
             #[doc(hidden)]
             const [<META_ $id:snake:upper>] :&DamageTypeMeta = &DamageTypeMeta {
                 name: stringify!([<$id:snake:upper>]),
-                doc: $doc,
+                description: $doc,
                 index: $index,
             };
 
@@ -207,10 +208,23 @@ impl ProxyPart<StatBlock, DamageHandling> for Immunity {
 
 /* DAMAGE PROVENANCE */
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DamageCause {
-    actor: DamageActor,
-    source: DamageSource,
+    pub actor: DamageActor,
+    pub source: DamageSource,
+}
+
+impl Display for DamageCause {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.actor)
+    }
+}
+
+impl DamageCause {
+    pub const UNKNOWN: Self = Self {
+        actor: DamageActor::Environment,
+        source: DamageSource,
+    };
 }
 
 impl DamageCause {
@@ -221,16 +235,25 @@ impl DamageCause {
 }
 
 /// Things that can cause damage.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum DamageActor {
     /// The environment itself.
     ///
     /// Damage from the DM is also included.
     Environment,
-    Entity(Weak<()>), // TODO: Fix this type.
+    Entity(Weak<Combatant>), // TODO: Fix this type.
 }
 
-#[derive(Debug)]
+impl Display for DamageActor {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DamageActor::Environment => write!(f, "ENVIRONMENT"),
+            DamageActor::Entity(_weak) => unimplemented!(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct DamageSource;
 
 impl DamageSource {
@@ -241,7 +264,7 @@ impl DamageSource {
 
 /// Tracks an amount of damage, with a singular [DamageType],
 /// with its [DamageCause]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DamagePart {
     pub damage_type: &'static DamageTypeMeta,
     pub amount: Box<DEvalTree>,
@@ -272,8 +295,14 @@ impl DamagePart {
 
 /// Multiple combinations of [DamagePart], making up
 /// the damage by an attack, spell, or other cause.
-#[derive(Debug)] // TODO: Manually implement Display.
-pub struct Damage(pub(super) Vec<DamagePart>);
+#[derive(Debug, Clone)] // TODO: Manually implement Display.
+pub struct Damage(pub(crate) Vec<DamagePart>);
+
+impl FromIterator<DamagePart> for Damage {
+    fn from_iter<T: IntoIterator<Item = DamagePart>>(iter: T) -> Self {
+        Self(iter.into_iter().collect())
+    }
+}
 
 impl Display for Damage {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -328,6 +357,26 @@ impl Add for Damage {
         self.0.append(&mut rhs.0);
         self
     }
+}
+
+impl AddAssign for Damage {
+    fn add_assign(&mut self, rhs: Self) {
+        self.0.extend(rhs.0);
+    }
+}
+
+pub fn pretty_damage(damage: &[(DExpr, &'static DamageTypeMeta)]) -> String {
+    let mut s = String::with_capacity(128);
+
+    for (i, (amount, ty)) in damage.iter().enumerate() {
+        write!(s, "{amount} {}", ty.name).unwrap();
+
+        if i < damage.len() - 1 {
+            write!(s, " + ").unwrap();
+        }
+    }
+
+    s
 }
 
 #[cfg(test)]

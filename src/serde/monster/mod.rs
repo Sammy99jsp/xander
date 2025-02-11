@@ -1,39 +1,57 @@
+pub mod speed;
+
 use std::{fmt::Display, sync::Weak};
 
 use serde::Deserialize;
 
-use crate::core::stats::{
-    monsters::{Monster, CR, XP},
-    stat_block::StatBlock,
-};
+mod rs {
+    pub(crate) use crate::core::stats::{
+        monster::ty::{lookup, MonsterTag, MonsterType, MonsterTypeMeta},
+        monster::{Alignment, Monster, CR, XP},
+        stat_block::StatBlock,
+    };
+}
 
 #[derive(Debug, Deserialize)]
 #[serde(try_from = "MonsterRawRaw")]
 pub struct MonsterRaw(MonsterRawRaw);
 
 impl MonsterRaw {
-    pub fn construct(self, this: Weak<StatBlock>) -> Monster {
-        let Self(MonsterRawRaw { cr, xp }) = self;
+    pub fn construct(self, this: Weak<rs::StatBlock>) -> rs::Monster {
+        let Self(MonsterRawRaw {
+            cr,
+            xp,
+            alignment,
+            kind: ty,
+        }) = self;
 
-        Monster {
+        rs::Monster {
+            ty,
             cr,
             xp: {
                 if let Some(xp) = xp {
-                    XP::fixed(xp, this)
+                    rs::XP::fixed(xp, this)
                 } else {
-                    XP::derived(this)
+                    rs::XP::derived(this)
                 }
             },
+            alignment,
         }
     }
 }
 
 #[derive(Debug, Deserialize)]
 struct MonsterRawRaw {
-    cr: CR,
+    // Can't call this 'type' because 'type': 'monster' is a thing already.
+    kind: rs::MonsterType,
+
+    cr: rs::CR,
 
     #[serde(default)]
     xp: Option<u32>,
+
+    #[serde(default)]
+    alignment: rs::Alignment,
 }
 
 pub struct IndeterminateXP;
@@ -52,7 +70,7 @@ impl TryFrom<MonsterRawRaw> for MonsterRaw {
     type Error = IndeterminateXP;
 
     fn try_from(value: MonsterRawRaw) -> Result<Self, Self::Error> {
-        if value.xp.is_none() && value.cr == CR::int(0).unwrap() {
+        if value.xp.is_none() && value.cr == rs::CR::int(0).unwrap() {
             return Err(IndeterminateXP);
         }
 
@@ -79,7 +97,7 @@ impl Display for IncorrectCRFormat {
     }
 }
 
-impl TryFrom<CRRaw> for CR {
+impl TryFrom<CRRaw> for rs::CR {
     type Error = IncorrectCRFormat;
 
     fn try_from(value: CRRaw) -> Result<Self, Self::Error> {
@@ -100,13 +118,38 @@ impl TryFrom<CRRaw> for CR {
             },
         };
 
-        CR::int(int).ok_or(IncorrectCRFormat)
+        rs::CR::int(int).ok_or(IncorrectCRFormat)
+    }
+}
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+pub enum CreatureTypeRaw {
+    #[serde(deserialize_with = "rs::lookup")]
+    Ty(&'static rs::MonsterTypeMeta),
+
+    WithTags {
+        #[serde(rename = "type")]
+        #[serde(deserialize_with = "rs::lookup")]
+        ty: &'static rs::MonsterTypeMeta,
+        tags: Vec<rs::MonsterTag>,
+    },
+}
+
+impl From<CreatureTypeRaw> for rs::MonsterType {
+    fn from(value: CreatureTypeRaw) -> Self {
+        match value {
+            CreatureTypeRaw::Ty(ty) => Self {
+                ty,
+                tags: Default::default(),
+            },
+            CreatureTypeRaw::WithTags { ty, tags } => Self { ty, tags },
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::core::stats::monsters::CR;
+    use crate::serde::monster::rs::CR;
 
     use super::MonsterRaw;
 
@@ -160,7 +203,8 @@ mod tests {
 
     #[test]
     fn test_monster_raw() {
-        let raw: MonsterRaw = serde_json::from_str(r#"{"cr": 0}"#).expect("valid parse");
+        let raw: MonsterRaw =
+            serde_json::from_str(r#"{"cr": 1, "type": "aberration" }"#).expect("valid parse");
         println!("{raw:?}");
     }
 }

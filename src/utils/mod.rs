@@ -2,10 +2,12 @@ pub mod meta;
 pub mod prettify;
 pub mod proxy;
 pub mod reactive;
+pub mod legality;
 
 use std::marker::PhantomData;
 
 pub use proxy::{Proxy, ProxyPart};
+pub use meta::Meta;
 
 pub struct Annotated<Note, Value> {
     value: Value,

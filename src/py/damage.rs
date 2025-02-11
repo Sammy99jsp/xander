@@ -1,141 +1,140 @@
-use std::str::FromStr;
+use std::{fmt::Write, str::FromStr};
 
 use pyo3::{
-    exceptions::{PyException, PyTypeError},
-    pyclass, pymethods, PyErr, PyObject, PyRef, PyRefMut, PyResult, Python,
+    exceptions::{PyException, PyTypeError, PyValueError},
+    pyclass, pymethods, PyObject, PyResult, Python,
 };
 
-use crate::core::dice::Die;
+use crate::core::stats::damage::DamagePart;
+
+mod rs {
+    pub use crate::core::stats::damage::{Damage, DamageCause, DamageType, DamageTypeMeta};
+
+    pub use crate::core::dice::{DEvalTree, DExpr};
+}
+
+#[pyclass]
+#[derive(Debug, Clone)]
+pub struct Damage(pub(in crate::py) rs::Damage);
 
 #[pymethods]
-impl Die {
-    #[new]
-    fn __new__(sides: i32) -> Self {
-        Self(sides)
-    }
-
-    #[getter(sides)]
-    fn __sides(&self) -> i32 {
-        self.0
-    }
-
+impl Damage {
     fn __repr__(&self) -> String {
-        format!("{}", self)
+        let mut st = String::with_capacity(128);
+
+        for part in &self.0 .0 {
+            write!(&mut st, "{part}").unwrap();
+        }
+
+        st
     }
 
-    #[pyo3(name = "roll")]
-    fn __roll(&self) -> i32 {
-        self.roll()
-    }
+    fn _repr_html_(&self) -> String {
+        let mut st = String::with_capacity(1024);
 
-    #[pyo3(name = "advantage")]
-    fn __advantage(&self) -> DExpr {
-        DExpr(self.advantage())
-    }
-
-    #[pyo3(name = "disadvantage")]
-    fn __disadvantage(&self) -> DExpr {
-        DExpr(self.disadvantage())
-    }
-
-    #[pyo3(name = "qty")]
-    fn __qty(&self, amount: u32) -> DExpr {
-        DExpr(crate::core::dice::DExpr::Die {
-            die: self.qty(amount),
-            both_adv_dis: false,
-        })
-    }
-
-    fn __add__(&self, rhs: PyObject) -> PyResult<DExpr> {
-        Python::with_gil(|py| {
-            // This is god awful, and involves a bunch of cloning.
-
-            if let Ok(die) = rhs.extract::<Die>(py) {
-                return Ok(DExpr(*self + die));
+        write!(st, r#"<div style="display: grid; grid-auto-flow: column; grid-auto-columns: max-content; gap: 0 5px;">"#).unwrap();
+        owo_colors::with_override(false, || {
+            for (i, part) in self.0.0.iter().enumerate() {
+                write!(&mut st, 
+                r#"<div style="display: grid; grid-auto-flow: column; gap: 0 5px; align-items: center; height: 30px; padding: 2px 5px; border: 1px solid rgba(255, 255, 255, 0.2);">
+                    <span style="font-weight: bold;">{}</span>
+                    <span class="damage_type">{}</span>
+                    <a style="margin-left: 2.5px; font-weight: bolder; display: block; aspect-ratio: 1 / 1; height: 20px; align-content: center; justify-content: center; display: flex; justify-self: center; text-decoration: none; color: rgb(63, 124, 172); background-color: rgba(63, 124, 172, 0.20); padding: 1px; border-radius: 4px;" title="{}">
+                        <small style="display: block; align-self: center;">#{i}</small>
+                    </a>
+                </div>"#,
+                    part.amount,
+                    part.damage_type.name,
+                    part.cause,
+                ).unwrap();
             }
+        });
 
-            if let Ok(dexpr) = rhs.extract::<DExpr>(py) {
-                return Ok(DExpr(*self + dexpr.0.clone()));
-            }
+        write!(st, "</div>").unwrap();
 
-            if let Ok(modifier) = rhs.extract::<i32>(py) {
-                return Ok(DExpr(*self + modifier));
-            }
+        st
+    }
 
-            Err(PyTypeError::new_err("Cannot add to that type."))
-        })
+    fn __iadd__(&mut self, rhs: Damage) {
+        self.0 += rhs.0;
+    }
+
+    fn __add__(&self, rhs: Damage) -> Damage {
+        Self(self.0.clone() + rhs.0)
     }
 }
 
-#[doc(hidden)]
-#[derive(Clone)]
-#[pyclass(frozen)]
-pub struct DExpr(crate::core::dice::DExpr);
+#[pyclass]
+#[derive(Debug, Clone)]
+pub struct DamageCause(rs::DamageCause);
 
 #[pymethods]
-impl DExpr {
-    #[new]
-    fn new(raw: PyObject) -> PyResult<Self> {
-        Python::with_gil(|py| {
-            if let Ok(raw) = raw.extract::<String>(py) {
-                return crate::core::dice::DExpr::from_str(&raw)
-                    .map(DExpr)
-                    .map_err(|errs| PyException::new_err(errs.to_string()));
-            }
-
-            Err(PyTypeError::new_err("Cannot create DExpr from that type."))
-        })
-    }
-
-    fn __add__(&self, rhs: PyObject) -> PyResult<Self> {
-        Python::with_gil(|py| {
-            // This is god awful, and involves a bunch of cloning.
-
-            if let Ok(die) = rhs.extract::<Die>(py) {
-                return Ok(Self(self.0.clone() + die));
-            }
-
-            if let Ok(dexpr) = rhs.extract::<DExpr>(py) {
-                return Ok(Self(self.0.clone() + dexpr.0.clone()));
-            }
-
-            if let Ok(modifier) = rhs.extract::<i32>(py) {
-                return Ok(Self(self.0.clone() + modifier));
-            }
-
-            Err(PyTypeError::new_err("Cannot add to that type."))
-        })
-    }
-
-    fn __repr__(&self) -> String {
-        format!("{}", self.0)
-    }
-
-    fn advantage(&self) -> Self {
-        Self(self.0.clone().advantage())
-    }
-
-    fn disadvantage(&self) -> Self {
-        Self(self.0.clone().disadvantage())
-    }
-
-    fn evaluate(&self) -> DEvalTree {
-        DEvalTree(self.0.evaluate())
+impl DamageCause {
+    #[classattr]
+    #[pyo3(name = "UNKNOWN")]
+    fn unknown() -> Self {
+        Self(rs::DamageCause::UNKNOWN)
     }
 }
 
-#[doc(hidden)]
-#[derive(Clone)]
-#[pyclass(frozen)]
-pub struct DEvalTree(crate::core::dice::DEvalTree);
+#[pyclass]
+pub struct DamageType(&'static rs::DamageTypeMeta);
+
+impl DamageType {
+    pub(crate) fn of<D: rs::DamageType>(_: D) -> Self {
+        Self(D::META)
+    }
+}
 
 #[pymethods]
-impl DEvalTree {
-    fn __repr__(&self) -> String {
-        format!("{}", self.0)
+impl DamageType {
+    fn name(&self) -> String {
+        self.0.name().to_string()
     }
 
-    fn result(&self) -> i32 {
-        self.0.result()
+    fn description(&self) -> String {
+        self.0.description.to_string()
+    }
+
+    fn __repr__(&self) -> String {
+        self.0.name().to_string()
+    }
+
+    fn _repr_html_(&self) -> String {
+        format!(r#"<span class="damage_type">{}</span>"#, self.0.name)
+    }
+
+    #[pyo3(signature = (amount, cause = DamageCause(rs::DamageCause::UNKNOWN)))]
+    fn __call__(&self, amount: PyObject, cause: DamageCause) -> PyResult<Damage> {
+        let amount = Python::with_gil(|py| {
+            if let Ok(amount) = amount.extract::<i32>(py) {
+                if amount <= 0 {
+                    return Err(PyValueError::new_err("damage amount cannot be negative"));
+                }
+
+                return Ok(Box::new(rs::DEvalTree::Modifier(amount)));
+            }
+
+            if let Ok(amount) = amount.extract::<String>(py) {
+                let Ok(amount) = rs::DExpr::from_str(&amount) else {
+                    return Err(PyValueError::new_err("couldn't parse dice notation"));
+                };
+
+                return Ok(Box::new(amount.evaluate()));
+            }
+
+            if let Ok(amount) = amount.extract::<super::DExpr>(py) {
+                return Ok(Box::new(amount.0.evaluate()));
+            }
+
+            Err(PyTypeError::new_err("expected str | int | DExpr"))
+        })?;
+
+        Ok(Damage(rs::Damage(vec![DamagePart {
+            damage_type: self.0,
+            amount,
+            cause: cause.0,
+            handling: Default::default(),
+        }])))
     }
 }

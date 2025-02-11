@@ -3,7 +3,7 @@
 use std::sync::Weak;
 
 use crate::{
-    core::{cause::Cause, dice::DExpr},
+    core::{cause::Cause, combat::turn::attack::roll::AttackRoll, dice::DExpr},
     proxy_wrapper,
     utils::{reactive::Lifespan, Proxy},
 };
@@ -30,7 +30,7 @@ impl AC {
 
     /// Checks if a "to hit" roll hits this AC.
     #[inline]
-    pub fn does_hit(&self, to_hit: i32) -> bool {
-        to_hit >= self.value()
+    pub fn does_hit(&self, to_hit: &AttackRoll) -> bool {
+        to_hit.0.result() >= self.value()
     }
 }

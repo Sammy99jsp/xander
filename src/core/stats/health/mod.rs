@@ -182,8 +182,17 @@ impl HP {
             // you, you fall unconscious (see appendix PH-­A). This
             // unconsciousness ends if you regain any hit points."
             Some(_) => {
-                // Start death saves.
                 let creature = self.stat_block.upgrade().unwrap();
+
+                if matches!(creature.ty, super::stat_block::CreatureType::Monster(_)) {
+                    // Just declare ourselves dead.
+                    // TODO: Review this properly by adding a
+                    // DeathPolicy or something.
+                    creature.dead.write().unwrap().replace(Dead);
+                    return DamageResult::Death;
+                }
+
+                // Start death saves.
                 let mut death_saves = self.death_saves.write().expect("Not poisoned.");
                 *death_saves = Some(DeathSaves::new(creature.as_ref()));
 

@@ -3,3 +3,4 @@ pub mod dice;
 pub mod combat;
 pub mod cause;
 pub mod creature;
+pub mod geom;

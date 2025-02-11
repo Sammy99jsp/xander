@@ -1,5 +1,4 @@
 use std::{
-    cell::{Cell, RefCell},
     collections::HashMap,
     fmt::Display,
     sync::{Arc, LazyLock, RwLock, Weak},
@@ -9,8 +8,10 @@ use serde::{Deserialize, Deserializer};
 
 use crate::{
     core::{
+        combat::initiative_die::InitiativeDie,
         dice::DExpr,
         stats::{
+            abilities::Ability,
             ac::{ACPart, AC},
             damage::{DamageType, Immunity, Resistance, Vulnerability},
             health::{
@@ -20,7 +21,8 @@ use crate::{
             skills::Skill,
             stat_block::{
                 AbilityModifiers, AbilityScoreP, AbilityScores, CreatureType, DamageEffectors,
-                DamageP, Override, Proficiency, ProficiencyBonus, Size, SkillP, Skills, StatBlock,
+                DamageP, Override, Proficiency, ProficiencyBonus, SaveP, Saves, Size, SkillP,
+                Skills, StatBlock,
             },
             AbilityScore,
         },
@@ -28,7 +30,11 @@ use crate::{
     utils::{reactive::Lifespan, Proxy},
 };
 
-use super::monster::MonsterRaw;
+use super::{
+    /* combat::ActionsRaw, */ combat::action::ActionsRaw,
+    monster::{speed::SpeedsRaw, MonsterRaw},
+    saves, /*, speed::SpeedsRaw */
+};
 
 macro_rules! ability_score_from {
     ($method: ident, $ty: ty) => {
@@ -525,6 +531,65 @@ impl CreatureTypeRaw {
     }
 }
 
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
+pub struct SavesRaw {
+    pub strength: Option<saves::SaveEffectorRaw>,
+    pub dexterity: Option<saves::SaveEffectorRaw>,
+    pub constitution: Option<saves::SaveEffectorRaw>,
+    pub intelligence: Option<saves::SaveEffectorRaw>,
+    pub wisdom: Option<saves::SaveEffectorRaw>,
+    pub charisma: Option<saves::SaveEffectorRaw>,
+}
+
+impl SavesRaw {
+    fn construct(self, weak: Weak<StatBlock>) -> Saves {
+        fn do_thing<A: Ability>(
+            weak: &Weak<StatBlock>,
+            opt: Option<saves::SaveEffectorRaw>,
+        ) -> SaveP<A> {
+            let proxy = SaveP::new(weak.clone());
+            match opt {
+                Some(saves::SaveEffectorRaw::Advantage) => {
+                    proxy.insert(crate::core::stats::save::Advantage::default())
+                }
+                Some(saves::SaveEffectorRaw::Disadvantage) => {
+                    proxy.insert(crate::core::stats::save::Disadvantage::default())
+                }
+                Some(saves::SaveEffectorRaw::Bonus { bonus, uses }) => {
+                    proxy.insert(crate::core::stats::save::Bonus {
+                        cause: Lifespan::Indefinite,
+                        bonus,
+                        uses,
+                    })
+                }
+                None => (),
+            }
+
+            proxy
+        }
+
+        let weak = &weak;
+        let Self {
+            strength,
+            dexterity,
+            constitution,
+            intelligence,
+            wisdom,
+            charisma,
+        } = self;
+
+        Saves {
+            strength: do_thing(weak, strength),
+            dexterity: do_thing(weak, dexterity),
+            constitution: do_thing(weak, constitution),
+            intelligence: do_thing(weak, intelligence),
+            wisdom: do_thing(weak, wisdom),
+            charisma: do_thing(weak, charisma),
+        }
+    }
+}
+
 #[derive(Debug, Deserialize)]
 pub struct StatBlockRaw {
     name: String,
@@ -533,9 +598,13 @@ pub struct StatBlockRaw {
     ty: self::CreatureTypeRaw,
     size: Size,
     scores: self::AbilityScoresRaw,
-
+    #[serde(alias = "speed")]
+    speeds: self::SpeedsRaw,
     #[serde(default)]
     skills: self::SkillsRaw,
+
+    #[serde(default)]
+    saves: self::SavesRaw,
 
     #[serde(default)]
     damage_effectors: self::DamageEffectorsRaw,
@@ -545,6 +614,8 @@ pub struct StatBlockRaw {
 
     health: self::HealthRaw,
 
+    #[serde(default)]
+    actions: ActionsRaw,
     ac: self::ACRaw,
 
     #[serde(default)]
@@ -557,13 +628,16 @@ impl StatBlockRaw {
             name,
             ty,
             size,
+            speeds,
             scores,
+            saves,
             skills,
             damage_effectors: damages,
             health,
             proficiency_bonus,
             condition_immunities,
             ac,
+            actions,
         } = self;
 
         let is_monster = matches!(ty, CreatureTypeRaw::Monster(_));
@@ -572,12 +646,17 @@ impl StatBlockRaw {
             name,
             ty: ty.construct(this.clone()),
             size,
+            // speeds: speeds.construct(this.clone()),
             scores: scores.construct(this.clone()),
+            saves: saves.construct(this.clone()),
             modifiers: AbilityModifiers::new(this),
             skills: skills.construct(this.clone()),
             damage_effectors: damages.construct(this.clone()),
             health: health.construct(this.clone()),
+            speeds: speeds.construct(this.clone()),
             ac: ac.construct(this.clone()),
+            actions: actions.construct(this.clone()),
+            initiative: InitiativeDie::new(this.clone()),
             condition_immunities: condition_immunities.construct(this.clone()),
             proficiency_bonus: {
                 if !is_monster {

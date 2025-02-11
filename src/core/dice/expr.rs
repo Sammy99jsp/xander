@@ -34,7 +34,7 @@ pub struct QDie(pub(crate) u32, pub(crate) Die);
 impl std::fmt::Display for QDie {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.0 == 1 {
-            write!(f, "d{}", self.1)
+            write!(f, "{}", self.1)
         } else {
             write!(f, "{}{}", self.0, self.1)
         }
@@ -205,6 +205,31 @@ impl DExpr {
     /// 
     pub fn result(&self) -> i32 {
         self.evaluate().result()
+    }
+
+    /// Mutably modify only the non-advantage/disadvantaged dice
+    /// in this expression.
+    pub fn apply_to_dice(&mut self, mut func: impl FnMut(&mut QDie) + Clone ) {
+        match self {
+            DExpr::Die { die, .. } => func(die),
+            DExpr::Add(lhs, rhs) => {
+                lhs.apply_to_dice(func.clone());
+                rhs.apply_to_dice(func);
+            },
+            DExpr::Sub(lhs, rhs) => {
+                lhs.apply_to_dice(func.clone());
+                rhs.apply_to_dice(func);
+            },
+            DExpr::Mul(lhs, rhs) => {
+                lhs.apply_to_dice(func.clone());
+                rhs.apply_to_dice(func);
+            },
+            DExpr::Div(lhs, rhs) => {
+                lhs.apply_to_dice(func.clone());
+                rhs.apply_to_dice(func);
+            },
+            _ => ()
+        }
     }
 }
 

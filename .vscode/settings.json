@@ -1,0 +1,11 @@
+{
+    "cSpell.words": [
+        "newtype"
+    ],
+    "rust-analyzer.cargo.features": [
+        "vis"
+    ],
+    "rust-analyzer.check.features": [
+        "vis"
+    ]
+}

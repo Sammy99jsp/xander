@@ -1,16 +1,11 @@
-use std::{
-    fmt::{Debug, Display},
-    num::NonZeroU32,
-    sync::Weak,
-};
+//! ## Challenge Rating
+
+use std::num::NonZeroU32;
 
 use serde::Deserialize;
-
-use crate::{core::dice::DExpr, proxy_wrapper, utils::Proxy};
-
 use crate::serde::monster::CRRaw;
 
-use super::stat_block::{CreatureType, StatBlock};
+use crate::core::dice::DExpr;
 
 #[rustfmt::skip]
 pub const VALID_CRS: [&str; 34] = ["0", "1/8", "1/4", "1/2", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30"];
@@ -40,8 +35,8 @@ const CHALLENGE_TO_XP: [Option<NonZeroU32>; 34] = [None, NonZeroU32::new(25), No
 ///
 #[rustc_layout_scalar_valid_range_start(0)]
 #[rustc_layout_scalar_valid_range_end(33)]
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
 #[repr(transparent)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
 #[serde(try_from = "CRRaw")]
 pub struct CR(u8);
 
@@ -79,47 +74,14 @@ impl CR {
     }
 }
 
-impl Debug for CR {
+impl std::fmt::Debug for CR {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "CR({})", VALID_CRS[self.0 as usize])
     }
 }
 
-impl Display for CR {
+impl std::fmt::Display for CR {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        <Self as Debug>::fmt(self, f)
+        <Self as std::fmt::Debug>::fmt(self, f)
     }
-}
-
-type XPValue = u32;
-proxy_wrapper!(XP, Proxy<StatBlock, XPValue>);
-
-impl XP {
-    pub fn fixed(xp: XPValue, ctx: Weak<StatBlock>) -> Self {
-        Self(Proxy::new(xp, ctx))
-    }
-
-    pub fn derived(ctx: Weak<StatBlock>) -> Self {
-        Self(Proxy::derived(
-            |this| match this.ty {
-                CreatureType::Player => unimplemented!(),
-                CreatureType::Monster(ref monster) => {
-                    monster.cr.xp().expect("XP should always be defined")
-                }
-            },
-            ctx,
-        ))
-    }
-}
-
-impl Display for XP {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} XP", self.0.get()) // TODO: number formatting.
-    }
-}
-
-#[derive(Debug)]
-pub struct Monster {
-    pub cr: CR,
-    pub xp: XP,
 }

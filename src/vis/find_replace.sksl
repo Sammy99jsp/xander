@@ -1,0 +1,7 @@
+// kind=colorfilter
+uniform vec4 find;
+uniform vec4 replace_with;
+
+half4 main(vec4 color) {
+    return (color == find) ? replace_with : color;
+}

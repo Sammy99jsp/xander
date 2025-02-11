@@ -1,0 +1,9 @@
+from typing import Optional
+
+from xander.engine.combat.action.attack import Attack
+
+class Action:
+    def __repr__(self) -> str: ...
+    def _repr_html_(self) -> str: ...
+
+    def as_attack(self) -> Optional[Attack]: ...

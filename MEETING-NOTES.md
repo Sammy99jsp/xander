@@ -47,3 +47,24 @@ DoP Video:
     * 
 
 * Playing with disadv. range
+
+06/02
+* Definition on D&D, mainly  Combat
+
+Past Work
+* Andrew Lim's
+* Lara Martin's:
+    * Proposal for an agent to play D&D
+    * 
+
+Why isn't D&D a thing in RL?
+* Complexity of the environment
+    * D&D is a rule only to be interpreted by humans.
+    * It's different to codify for an RL agent to understand
+* Ambiguity of the rules:
+* What makes a good agent?
+
+Describe the RL problem:
+* What players do
+* Agent rewards
+* Agent actions = { Attack, Move(Left, Up, Down, Right), End }.

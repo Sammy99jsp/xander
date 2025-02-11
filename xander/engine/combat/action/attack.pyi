@@ -1,0 +1,19 @@
+from xander.engine.combat.action import Action
+from xander.engine.damage import Damage
+
+class Attack(Action):
+    def __repr__(self): ...
+    def _repr_html_(self): ...
+
+class AttackResult:
+    @property
+    def successful(self) -> bool: ...
+    
+    @property
+    def to_hit(self) -> AttackRoll: ...
+    
+    @property
+    def damage(self) -> Damage: ...
+
+class AttackRoll:
+    def __repr__(self) -> str: ...

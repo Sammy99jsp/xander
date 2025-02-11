@@ -5,9 +5,9 @@ use serde::Deserialize;
 use super::stats::stat_block::StatBlock;
 use crate::serde::StatBlockRaw;
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 #[serde(from = "StatBlockRaw")]
-pub struct Monster(Arc<StatBlock>);
+pub struct Monster(pub Arc<StatBlock>);
 
 impl From<StatBlockRaw> for Monster {
     fn from(value: StatBlockRaw) -> Self {
